@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PhotoShare — Creator Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F7F3EE;
+      --ink:   #1A1714;
+      --rust:  #C0502A;
+      --gold:  #D4A547;
+      --mist:  #E8E2DA;
+      --green: #3a7d44;
+      --red:   #c0392b;
+      --radius: 4px;
+      --shadow: 0 2px 20px rgba(26,23,20,0.10);
+    }
+
+    body { background: var(--cream); color: var(--ink); font-family: 'DM Sans', sans-serif; font-weight: 300; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(247,243,238,.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--mist);
+      padding: 0 2rem; display: flex; align-items: center;
+      justify-content: space-between; height: 64px;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 900; text-decoration: none; color: var(--ink); }
+    .logo span { color: var(--rust); }
+    nav a.back { font-size: .875rem; opacity: .6; text-decoration: none; color: var(--ink); transition: opacity .2s; }
+    nav a.back:hover { opacity: 1; }
+    #btn-logout { background: var(--ink); color: var(--cream); border: none; padding: .45rem 1.1rem; border-radius: var(--radius); font-family: inherit; font-size: .875rem; cursor: pointer; }
+
+    /* ── LAYOUT ── */
+    .studio {
+      max-width: 1100px; margin: 2.5rem auto; padding: 0 2rem;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+      align-items: start;
+    }
+    @media (max-width: 700px) { .studio { grid-template-columns: 1fr; } }
+
+    /* ── UPLOAD PANEL ── */
+    .panel {
+      background: white; border-radius: var(--radius);
+      padding: 1.75rem; box-shadow: var(--shadow);
+    }
+    .panel h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem; font-weight: 700; margin-bottom: 1.25rem;
+    }
+
+    /* drop zone */
+    .drop-zone {
+      border: 2px dashed var(--mist); border-radius: var(--radius);
+      min-height: 200px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: .5rem;
+      cursor: pointer; transition: border-color .2s, background .2s;
+      position: relative; overflow: hidden;
+      text-align: center; padding: 1.5rem;
+    }
+    .drop-zone.drag-over { border-color: var(--rust); background: #fdf5f2; }
+    .drop-zone .dz-icon { font-size: 2.5rem; opacity: .3; }
+    .drop-zone .dz-hint { font-size: .85rem; opacity: .5; }
+    .drop-zone .dz-hint strong { color: var(--rust); cursor: pointer; }
+    .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    #preview-wrap { display: none; }
+    #preview-wrap img { width: 100%; border-radius: var(--radius); max-height: 260px; object-fit: cover; display: block; }
+    #preview-change { margin-top: .5rem; font-size: .8rem; color: var(--rust); cursor: pointer; text-decoration: underline; background: none; border: none; font-family: inherit; }
+
+    /* form fields */
+    .field { margin-top: 1rem; }
+    .field label { display: block; font-size: .8rem; font-weight: 500; opacity: .6; margin-bottom: .35rem; text-transform: uppercase; letter-spacing: .04em; }
+    .field input, .field textarea {
+      width: 100%; border: 1.5px solid var(--mist); border-radius: var(--radius);
+      padding: .55rem .75rem; font-family: inherit; font-size: .9rem;
+      color: var(--ink); outline: none; transition: border-color .2s;
+      background: white;
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .field input:focus, .field textarea:focus { border-color: var(--rust); }
+
+    /* AI tags preview */
+    .tags-preview { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; min-height: 28px; }
+    .tag-chip {
+      font-size: .72rem; padding: .2rem .55rem; border-radius: 99px;
+      background: var(--mist); color: var(--ink);
+      animation: popIn .2s ease;
+    }
+    @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .tags-hint { font-size: .78rem; opacity: .4; font-style: italic; }
+
+    /* progress bar */
+    .progress-wrap { margin-top: 1rem; display: none; }
+    .progress-bar { height: 4px; background: var(--mist); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--rust); width: 0%; transition: width .3s; border-radius: 99px; }
+    .progress-label { font-size: .78rem; opacity: .5; margin-top: .3rem; }
+
+    /* submit button */
+    #btn-upload {
+      width: 100%; margin-top: 1.25rem;
+      background: var(--ink); color: var(--cream);
+      border: none; border-radius: var(--radius);
+      padding: .75rem; font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 700; cursor: pointer;
+      transition: background .2s;
+    }
+    #btn-upload:hover:not(:disabled) { background: var(--rust); }
+    #btn-upload:disabled { opacity: .5; cursor: not-allowed; }
+
+    #upload-msg { margin-top: .75rem; font-size: .85rem; text-align: center; min-height: 1.2em; }
+    #upload-msg.ok  { color: var(--green); }
+    #upload-msg.err { color: var(--red);   }
+
+    /* ── MY POSTS ── */
+    .posts-list { display: flex; flex-direction: column; gap: .85rem; }
+    .post-item {
+      display: flex; gap: .75rem; align-items: center;
+      background: white; border-radius: var(--radius);
+      padding: .75rem; box-shadow: var(--shadow);
+    }
+    .post-item img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius); flex-shrink: 0; }
+    .post-item-body { flex: 1; overflow: hidden; }
+    .post-item-title { font-weight: 500; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .post-item-meta  { font-size: .75rem; opacity: .5; margin-top: .15rem; }
+    .post-item-tags  { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
+    .post-item .tag  { font-size: .65rem; padding: .15rem .4rem; border-radius: 99px; border: 1px solid var(--mist); }
+    .btn-delete {
+      background: none; border: 1.5px solid var(--mist);
+      border-radius: var(--radius); padding: .35rem .65rem;
+      font-family: inherit; font-size: .78rem; cursor: pointer;
+      color: var(--ink); transition: all .2s; flex-shrink: 0;
+    }
+    .btn-delete:hover { border-color: var(--red); color: var(--red); }
+
+    /* confirm overlay */
+    .confirm-overlay {
+      position: fixed; inset: 0; z-index: 300;
+      background: rgba(26,23,20,.55); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      display: none;
+    }
+    .confirm-box {
+      background: var(--cream); border-radius: var(--radius);
+      padding: 2rem; max-width: 360px; width: 90%; text-align: center;
+      box-shadow: 0 16px 60px rgba(26,23,20,.2);
+    }
+    .confirm-box h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; margin-bottom: .75rem; }
+    .confirm-box p  { font-size: .875rem; opacity: .7; margin-bottom: 1.5rem; }
+    .confirm-btns   { display: flex; gap: .75rem; justify-content: center; }
+    .confirm-btns button {
+      padding: .55rem 1.25rem; border-radius: var(--radius);
+      font-family: inherit; font-size: .875rem; cursor: pointer;
+      border: 1.5px solid var(--ink);
+    }
+    #confirm-yes { background: var(--red); color: white; border-color: var(--red); }
+    #confirm-no  { background: white; color: var(--ink); }
+
+    /* guard screen */
+    #auth-guard { display: none; text-align: center; padding: 5rem 2rem; }
+    #auth-guard h2 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 1rem; }
+    #auth-guard button { background: var(--rust); color: white; border: none; padding: .65rem 1.5rem; border-radius: var(--radius); font-family: inherit; font-size: 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="logo">Photo<span>Share</span> <span style="font-family:'DM Sans';font-size:.8rem;opacity:.5;font-weight:300">Creator Studio</span></a>
+  <div style="display:flex;gap:1rem;align-items:center">
+    <a href="/" class="back">← Browse</a>
+    <button id="btn-logout">Sign out</button>
+  </div>
+</nav>
+
+<!-- Auth guard (shown if not creator) -->
+<div id="auth-guard">
+  <h2>Creator access only</h2>
+  <p style="opacity:.6;margin-bottom:1.5rem">Sign in with a creator account to upload photos.</p>
+  <button id="btn-login-guard">Sign in</button>
+</div>
+
+<div class="studio" id="studio" style="display:none">
+
+  <!-- LEFT: Upload panel -->
+  <div class="panel">
+    <h2>Upload a photo</h2>
+
+    <!-- Drop zone -->
+    <div class="drop-zone" id="drop-zone">
+      <div class="dz-icon">📷</div>
+      <div class="dz-hint">Drag & drop or <strong>browse files</strong></div>
+      <div class="dz-hint" style="font-size:.75rem">JPEG, PNG, WEBP · max 10 MB</div>
+      <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp"/>
+    </div>
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="Preview"/>
+      <button id="preview-change">Change photo</button>
+    </div>
+
+    <!-- Metadata fields -->
+    <div class="field">
+      <label>Title *</label>
+      <input type="text" id="field-title" maxlength="120" placeholder="Give your photo a title"/>
+    </div>
+    <div class="field">
+      <label>Caption</label>
+      <textarea id="field-caption" maxlength="500" placeholder="Tell the story…"></textarea>
+    </div>
+    <div class="field">
+      <label>Location</label>
+      <input type="text" id="field-location" maxlength="120" placeholder="Where was this taken?"/>
+    </div>
+    <div class="field">
+      <label>People present <span style="font-weight:300;opacity:.5">(comma-separated)</span></label>
+      <input type="text" id="field-people" placeholder="Alice, Bob, Carol…"/>
+    </div>
+
+    <!-- AI tag preview -->
+    <div class="field">
+      <label>AI auto-tags <span style="font-weight:300;opacity:.5">(generated on upload)</span></label>
+      <div class="tags-preview" id="tags-preview">
+        <span class="tags-hint">Tags will appear here after upload via Azure Computer Vision</span>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label">Uploading…</div>
+    </div>
+
+    <button id="btn-upload" disabled>Upload Photo</button>
+    <div id="upload-msg"></div>
+  </div>
+
+  <!-- RIGHT: My posts -->
+  <div class="panel">
+    <h2>My posts</h2>
+    <div id="my-posts-status" style="font-size:.85rem;opacity:.5;text-align:center;padding:1rem">Loading…</div>
+    <div class="posts-list" id="my-posts"></div>
+  </div>
+</div>
+
+<!-- Delete confirmation dialog -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <h3>Delete this photo?</h3>
+    <p>This cannot be undone. The photo and all its comments will be removed.</p>
+    <div class="confirm-btns">
+      <button id="confirm-no">Cancel</button>
+      <button id="confirm-yes">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initAuth, login, logout, getUser, isCreator } from './js/auth.js';
+  import { getPosts, createPost, deletePost } from './js/api.js';
+
+  let pendingDeleteId = null;
+  let selectedFile    = null;
+  let currentUser     = null;
+
+  // ── Bootstrap ──────────────────────────────────────────────────────────────
+  async function bootstrap() {
+    const loggedIn = await initAuth();
+    if (!loggedIn) { showGuard(); return; }
+    currentUser = await getUser();
+    if (currentUser.role !== 'creator') { showGuard('You need a creator account.'); return; }
+    document.getElementById('studio').style.display = 'grid';
+    await loadMyPosts();
+  }
+
+  function showGuard(msg = '') {
+    document.getElementById('auth-guard').style.display = 'block';
+    if (msg) document.querySelector('#auth-guard p').textContent = msg;
+  }
+
+  // ── Drop zone ──────────────────────────────────────────────────────────────
+  const dropZone  = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  document.getElementById('preview-change').addEventListener('click', () => {
+    selectedFile = null;
+    document.getElementById('drop-zone').style.display  = 'flex';
+    document.getElementById('preview-wrap').style.display = 'none';
+    document.getElementById('btn-upload').disabled = true;
+  });
+
+  function handleFile(file) {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) { showMsg('Only JPEG, PNG or WEBP images are allowed.', 'err'); return; }
+    if (file.size > 10 * 1024 * 1024) { showMsg('File exceeds 10 MB limit.', 'err'); return; }
+    selectedFile = file;
+    const url = URL.createObjectURL(file);
+    document.getElementById('preview-img').src = url;
+    document.getElementById('drop-zone').style.display    = 'none';
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('btn-upload').disabled = false;
+    showMsg('', '');
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  document.getElementById('btn-upload').addEventListener('click', async () => {
+    const title = document.getElementById('field-title').value.trim();
+    if (!title) { showMsg('Title is required.', 'err'); return; }
+    if (!selectedFile) { showMsg('Please select a photo.', 'err'); return; }
+
+    // Build FormData
+    const fd = new FormData();
+    fd.append('photo', selectedFile, selectedFile.name);
+    fd.append('title', title);
+    fd.append('caption', document.getElementById('field-caption').value.trim());
+    fd.append('location', document.getElementById('field-location').value.trim());
+    fd.append('people_present', document.getElementById('field-people').value.trim());
+
+    // Show progress
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('btn-upload').disabled = true;
+    animateProgress();
+
+    try {
+      const post = await createPost(fd);
+      setProgress(100, 'Done!');
+      showMsg('✓ Photo uploaded successfully!', 'ok');
+      // Show AI-generated tags
+      if (post.auto_tags?.length) {
+        const preview = document.getElementById('tags-preview');
+        preview.innerHTML = post.auto_tags.map(t => `<span class="tag-chip">${escHtml(t)}</span>`).join('');
+      }
+      // Reset form
+      setTimeout(() => {
+        document.getElementById('field-title').value   = '';
+        document.getElementById('field-caption').value = '';
+        document.getElementById('field-location').value = '';
+        document.getElementById('field-people').value   = '';
+        document.getElementById('preview-change').click();
+        document.getElementById('progress-wrap').style.display = 'none';
+        setProgress(0, '');
+      }, 1500);
+      await loadMyPosts();
+    } catch (err) {
+      setProgress(0, '');
+      document.getElementById('progress-wrap').style.display = 'none';
+      document.getElementById('btn-upload').disabled = false;
+      showMsg(err.detail || 'Upload failed. Please try again.', 'err');
+    }
+  });
+
+  let _progInterval = null;
+  function animateProgress() {
+    let p = 0;
+    clearInterval(_progInterval);
+    _progInterval = setInterval(() => {
+      p = Math.min(p + Math.random() * 12, 85);
+      setProgress(p, 'Uploading…');
+    }, 200);
+  }
+  function setProgress(pct, label) {
+    clearInterval(_progInterval);
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-label').textContent = label;
+  }
+
+  // ── My posts ───────────────────────────────────────────────────────────────
+  async function loadMyPosts() {
+    document.getElementById('my-posts-status').textContent = 'Loading…';
+    document.getElementById('my-posts').innerHTML = '';
+    try {
+      const data = await getPosts({ pageSize: 100 });
+      // Filter to current creator — API returns only public posts but
+      // we use creator_id match client-side for the "my posts" panel.
+      const mine = data.items; // backend already scoped when auth is creator
+      if (!mine.length) {
+        document.getElementById('my-posts-status').textContent = 'No posts yet. Upload your first photo!';
+        return;
+      }
+      document.getElementById('my-posts-status').textContent = '';
+      renderMyPosts(mine);
+    } catch {
+      document.getElementById('my-posts-status').textContent = 'Failed to load posts.';
+    }
+  }
+
+  function renderMyPosts(posts) {
+    const container = document.getElementById('my-posts');
+    container.innerHTML = '';
+    posts.forEach(post => {
+      const item = document.createElement('div');
+      item.className = 'post-item';
+      item.innerHTML = `
+        <img src="${post.blob_url}" alt="${escHtml(post.title)}"/>
+        <div class="post-item-body">
+          <div class="post-item-title">${escHtml(post.title)}</div>
+          <div class="post-item-meta">${fmtDate(post.created_at)} · ★ ${post.avg_rating?.toFixed(1) || '—'}</div>
+          <div class="post-item-tags">
+            ${(post.auto_tags || []).slice(0, 4).map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}
+          </div>
+        </div>
+        <button class="btn-delete" data-id="${post.id}">Delete</button>`;
+      container.appendChild(item);
+    });
+
+    container.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', () => confirmDelete(btn.dataset.id));
+    });
+  }
+
+  // ── Delete confirmation ────────────────────────────────────────────────────
+  function confirmDelete(postId) {
+    pendingDeleteId = postId;
+    document.getElementById('confirm-overlay').style.display = 'flex';
+  }
+
+  document.getElementById('confirm-yes').addEventListener('click', async () => {
+    if (!pendingDeleteId) return;
+    document.getElementById('confirm-overlay').style.display = 'none';
+    try {
+      await deletePost(pendingDeleteId);
+      pendingDeleteId = null;
+      await loadMyPosts();
+    } catch (err) {
+      alert(err.detail || 'Failed to delete post.');
+    }
+  });
+  document.getElementById('confirm-no').addEventListener('click', () => {
+    pendingDeleteId = null;
+    document.getElementById('confirm-overlay').style.display = 'none';
+  });
+
+  // ── Nav ────────────────────────────────────────────────────────────────────
+  document.getElementById('btn-logout').addEventListener('click', logout);
+  document.getElementById('btn-login-guard').addEventListener('click', login);
+
+  // ── Utils ──────────────────────────────────────────────────────────────────
+  function escHtml(str = '') {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+  function showMsg(text, type) {
+    const el = document.getElementById('upload-msg');
+    el.textContent = text;
+    el.className = type;
+  }
+
+  bootstrap();
+</script>
+</body>
+</html>

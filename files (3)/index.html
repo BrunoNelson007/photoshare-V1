@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PhotoShare</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <!-- Auth0 SPA SDK -->
+  <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cream: #F7F3EE;
+      --ink:   #1A1714;
+      --rust:  #C0502A;
+      --gold:  #D4A547;
+      --mist:  #E8E2DA;
+      --glass: rgba(247,243,238,0.92);
+      --radius: 4px;
+      --shadow: 0 2px 20px rgba(26,23,20,0.10);
+    }
+
+    body {
+      background: var(--cream);
+      color: var(--ink);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--mist);
+      padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; font-weight: 900;
+      color: var(--ink); text-decoration: none;
+      letter-spacing: -0.02em;
+    }
+    .logo span { color: var(--rust); }
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+    .nav-right a { text-decoration: none; color: var(--ink); font-size: .875rem; opacity: .7; transition: opacity .2s; }
+    .nav-right a:hover { opacity: 1; }
+    #btn-login, #btn-logout {
+      background: var(--ink); color: var(--cream);
+      border: none; padding: .5rem 1.25rem;
+      border-radius: var(--radius); font-family: inherit;
+      font-size: .875rem; cursor: pointer;
+      transition: background .2s;
+    }
+    #btn-login:hover, #btn-logout:hover { background: var(--rust); }
+    #user-chip {
+      display: none; align-items: center; gap: .5rem;
+      font-size: .875rem;
+    }
+    #user-chip img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+    #user-chip .role-badge {
+      font-size: .7rem; padding: .2rem .5rem;
+      border-radius: 99px; font-weight: 500;
+      background: var(--rust); color: white;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 3.5rem 2rem 2rem;
+      text-align: center;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.5rem, 6vw, 4.5rem);
+      font-weight: 900; line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+    .hero h1 em { color: var(--rust); font-style: italic; }
+    .hero p { margin-top: .75rem; opacity: .6; font-size: 1.05rem; }
+
+    /* ── SEARCH BAR ── */
+    .search-wrap {
+      max-width: 680px; margin: 2rem auto 0;
+      display: flex; gap: .5rem; align-items: center;
+      background: white; border: 1.5px solid var(--mist);
+      border-radius: var(--radius); padding: .5rem .75rem;
+      box-shadow: var(--shadow);
+    }
+    .search-wrap input {
+      flex: 1; border: none; outline: none;
+      font-family: inherit; font-size: .95rem;
+      background: transparent; color: var(--ink);
+    }
+    .search-wrap button {
+      background: var(--rust); color: white;
+      border: none; border-radius: var(--radius);
+      padding: .45rem 1.1rem; font-family: inherit;
+      font-size: .875rem; cursor: pointer;
+      transition: background .2s;
+    }
+    .search-wrap button:hover { background: #a8441f; }
+    .filter-row {
+      max-width: 680px; margin: .75rem auto 0;
+      display: flex; gap: .5rem; flex-wrap: wrap;
+    }
+    .filter-row input {
+      flex: 1; min-width: 140px;
+      border: 1.5px solid var(--mist); border-radius: var(--radius);
+      padding: .4rem .75rem; font-family: inherit; font-size: .85rem;
+      background: white; color: var(--ink); outline: none;
+      transition: border-color .2s;
+    }
+    .filter-row input:focus { border-color: var(--rust); }
+
+    /* ── GRID ── */
+    main { max-width: 1200px; margin: 2.5rem auto; padding: 0 2rem; }
+    #grid-status { text-align: center; padding: 1rem; font-size: .875rem; opacity: .5; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+    .card {
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: white;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(26,23,20,0.13); }
+    .card img {
+      width: 100%; aspect-ratio: 4/3; object-fit: cover;
+      display: block;
+      transition: opacity .3s;
+    }
+    .card-body { padding: .85rem 1rem .9rem; }
+    .card-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .card-meta { font-size: .78rem; opacity: .5; margin-top: .2rem; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .6rem; }
+    .tag {
+      font-size: .7rem; padding: .2rem .5rem;
+      border-radius: 99px; border: 1px solid var(--mist);
+      color: var(--ink); opacity: .8;
+    }
+    .stars { color: var(--gold); font-size: .85rem; margin-top: .4rem; }
+
+    /* ── PAGINATION ── */
+    .pagination {
+      display: flex; justify-content: center; gap: .5rem;
+      margin: 2.5rem 0;
+    }
+    .pagination button {
+      border: 1.5px solid var(--mist); background: white;
+      padding: .45rem .9rem; border-radius: var(--radius);
+      font-family: inherit; font-size: .85rem; cursor: pointer;
+      transition: all .2s; color: var(--ink);
+    }
+    .pagination button:hover, .pagination button.active {
+      background: var(--ink); color: var(--cream); border-color: var(--ink);
+    }
+    .pagination button:disabled { opacity: .3; pointer-events: none; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(26,23,20,.6);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--cream);
+      border-radius: var(--radius);
+      max-width: 860px; width: 100%;
+      max-height: 90vh; overflow-y: auto;
+      display: grid; grid-template-columns: 1fr 1fr;
+      box-shadow: 0 24px 80px rgba(26,23,20,.25);
+      transform: translateY(16px);
+      transition: transform .25s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-img { position: relative; }
+    .modal-img img {
+      width: 100%; height: 100%; object-fit: cover;
+      border-radius: var(--radius) 0 0 var(--radius);
+      display: block; min-height: 320px;
+    }
+    .modal-panel { padding: 1.75rem; display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+    .modal-close {
+      position: absolute; top: .75rem; right: .75rem;
+      background: rgba(26,23,20,.5); color: white;
+      border: none; border-radius: 50%;
+      width: 32px; height: 32px; cursor: pointer;
+      font-size: 1.1rem; display: flex; align-items: center; justify-content: center;
+    }
+    .modal-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; font-weight: 900;
+      line-height: 1.1;
+    }
+    .modal-caption { font-size: .9rem; opacity: .7; line-height: 1.6; }
+    .modal-meta { font-size: .8rem; opacity: .5; }
+    .modal-meta span + span::before { content: " · "; }
+
+    /* star rating widget */
+    .star-rating { display: flex; gap: .25rem; }
+    .star-rating button {
+      background: none; border: none; cursor: pointer;
+      font-size: 1.4rem; color: var(--mist);
+      transition: color .15s, transform .15s;
+      padding: 0;
+    }
+    .star-rating button:hover,
+    .star-rating button.lit { color: var(--gold); transform: scale(1.15); }
+
+    /* sentiment badge */
+    .sentiment {
+      display: inline-block; font-size: .7rem;
+      padding: .15rem .45rem; border-radius: 99px;
+      font-weight: 500;
+    }
+    .sentiment.positive { background: #d4f4dd; color: #1a5e2e; }
+    .sentiment.neutral  { background: #e8e2da; color: #555; }
+    .sentiment.negative { background: #fce4dc; color: #8b1c0a; }
+
+    /* comments */
+    .comments-list { display: flex; flex-direction: column; gap: .75rem; max-height: 220px; overflow-y: auto; }
+    .comment-item { background: white; border-radius: var(--radius); padding: .65rem .85rem; }
+    .comment-item .c-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .25rem; }
+    .comment-item .c-name { font-size: .78rem; font-weight: 500; }
+    .comment-item .c-text { font-size: .85rem; opacity: .8; line-height: 1.5; }
+    .comment-form { display: flex; gap: .5rem; margin-top: auto; }
+    .comment-form input {
+      flex: 1; border: 1.5px solid var(--mist); border-radius: var(--radius);
+      padding: .5rem .75rem; font-family: inherit; font-size: .875rem;
+      outline: none; transition: border-color .2s;
+    }
+    .comment-form input:focus { border-color: var(--rust); }
+    .comment-form button {
+      background: var(--rust); color: white; border: none;
+      border-radius: var(--radius); padding: .5rem 1rem;
+      font-family: inherit; font-size: .875rem; cursor: pointer;
+    }
+
+    @media (max-width: 640px) {
+      .modal { grid-template-columns: 1fr; }
+      .modal-img img { border-radius: var(--radius) var(--radius) 0 0; min-height: 220px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="/" class="logo">Photo<span>Share</span></a>
+  <div class="nav-right">
+    <span id="user-chip">
+      <img id="user-avatar" src="" alt=""/>
+      <span id="user-name"></span>
+      <span class="role-badge" id="role-badge">consumer</span>
+    </span>
+    <a href="creator.html" id="link-creator" style="display:none">Upload</a>
+    <button id="btn-login">Sign in</button>
+    <button id="btn-logout" style="display:none">Sign out</button>
+  </div>
+</nav>
+
+<!-- HERO + SEARCH -->
+<section class="hero">
+  <h1>Beautiful photos,<br/><em>shared moments.</em></h1>
+  <p>Discover, rate and comment on photos from creators around the world.</p>
+  <div class="search-wrap">
+    <input id="search-q" type="search" placeholder="Search photos, tags, places…"/>
+    <button onclick="doSearch()">Search</button>
+  </div>
+  <div class="filter-row">
+    <input id="filter-location" type="text" placeholder="Filter by location…"/>
+    <input id="filter-tag"      type="text" placeholder="Filter by tag…"/>
+  </div>
+</section>
+
+<!-- GRID -->
+<main>
+  <div id="grid-status">Loading photos…</div>
+  <div class="grid" id="grid"></div>
+  <div class="pagination" id="pagination"></div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal" id="modal">
+    <div class="modal-img">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">✕</button>
+      <img id="modal-img" src="" alt=""/>
+    </div>
+    <div class="modal-panel">
+      <div>
+        <h2 class="modal-title" id="modal-title"></h2>
+        <p class="modal-caption" id="modal-caption"></p>
+        <p class="modal-meta">
+          <span id="modal-creator"></span>
+          <span id="modal-location"></span>
+          <span id="modal-date"></span>
+        </p>
+      </div>
+      <div class="card-tags" id="modal-tags"></div>
+      <div>
+        <div style="font-size:.8rem;font-weight:500;margin-bottom:.4rem;opacity:.6">YOUR RATING</div>
+        <div class="star-rating" id="star-rating">
+          <button data-score="1">★</button>
+          <button data-score="2">★</button>
+          <button data-score="3">★</button>
+          <button data-score="4">★</button>
+          <button data-score="5">★</button>
+        </div>
+        <div id="avg-rating" style="font-size:.8rem;margin-top:.35rem;opacity:.5"></div>
+      </div>
+      <div>
+        <div style="font-size:.8rem;font-weight:500;margin-bottom:.5rem;opacity:.6">COMMENTS</div>
+        <div class="comments-list" id="comments-list"></div>
+        <div class="comment-form" id="comment-form" style="display:none">
+          <input id="comment-input" type="text" placeholder="Add a comment…" maxlength="500"/>
+          <button onclick="submitComment()">Post</button>
+        </div>
+        <p id="comment-login-hint" style="font-size:.8rem;opacity:.5;margin-top:.5rem;display:none">
+          Sign in to comment and rate.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initAuth, login, logout, getUser, isCreator } from './js/auth.js';
+  import { getPosts, getPost, getComments, addComment, ratePost, getRating } from './js/api.js';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let currentPage = 1;
+  let totalPages  = 1;
+  let activePostId = null;
+  let currentUser  = null;
+
+  // ── Auth bootstrap ─────────────────────────────────────────────────────────
+  async function bootstrap() {
+    const loggedIn = await initAuth();
+    if (loggedIn) {
+      currentUser = await getUser();
+      document.getElementById('user-chip').style.display = 'flex';
+      document.getElementById('user-avatar').src = currentUser.picture || '';
+      document.getElementById('user-name').textContent = currentUser.name || '';
+      document.getElementById('role-badge').textContent = currentUser.role;
+      document.getElementById('btn-login').style.display = 'none';
+      document.getElementById('btn-logout').style.display = 'block';
+      if (currentUser.role === 'creator') {
+        document.getElementById('link-creator').style.display = 'inline';
+      }
+    }
+    await loadGrid();
+  }
+
+  // ── Grid loading ───────────────────────────────────────────────────────────
+  async function loadGrid(page = 1) {
+    const q        = document.getElementById('search-q').value.trim();
+    const location = document.getElementById('filter-location').value.trim();
+    const tag      = document.getElementById('filter-tag').value.trim();
+    document.getElementById('grid-status').textContent = 'Loading…';
+    document.getElementById('grid').innerHTML = '';
+
+    try {
+      const data = await getPosts({ q, location, tag, page, pageSize: 20 });
+      currentPage = data.page;
+      totalPages  = Math.ceil(data.total / data.page_size) || 1;
+
+      if (!data.items.length) {
+        document.getElementById('grid-status').textContent = 'No photos found.';
+        renderPagination();
+        return;
+      }
+      document.getElementById('grid-status').textContent = '';
+      renderCards(data.items);
+      renderPagination();
+    } catch (err) {
+      document.getElementById('grid-status').textContent =
+        err.status === 401 ? 'Please sign in to browse photos.' : 'Failed to load photos.';
+    }
+  }
+
+  function renderCards(items) {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    items.forEach(post => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <img src="${post.blob_url}" alt="${post.title}" loading="lazy"/>
+        <div class="card-body">
+          <div class="card-title">${escHtml(post.title)}</div>
+          <div class="card-meta">${escHtml(post.creator_name)} · ${fmtDate(post.created_at)}</div>
+          <div class="stars">${starsStr(post.avg_rating)} <span style="opacity:.5;font-size:.75rem">${post.avg_rating ? post.avg_rating.toFixed(1) : 'Not rated'}</span></div>
+          <div class="card-tags">${(post.auto_tags || []).slice(0, 4).map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
+        </div>`;
+      card.addEventListener('click', () => openModal(post.id));
+      grid.appendChild(card);
+    });
+  }
+
+  function renderPagination() {
+    const el = document.getElementById('pagination');
+    el.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const prev = document.createElement('button');
+    prev.textContent = '← Prev';
+    prev.disabled = currentPage === 1;
+    prev.addEventListener('click', () => loadGrid(currentPage - 1));
+    el.appendChild(prev);
+
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      if (i === currentPage) btn.classList.add('active');
+      btn.addEventListener('click', () => loadGrid(i));
+      el.appendChild(btn);
+    }
+
+    const next = document.createElement('button');
+    next.textContent = 'Next →';
+    next.disabled = currentPage === totalPages;
+    next.addEventListener('click', () => loadGrid(currentPage + 1));
+    el.appendChild(next);
+  }
+
+  // ── Modal ──────────────────────────────────────────────────────────────────
+  async function openModal(postId) {
+    activePostId = postId;
+    document.getElementById('modal-overlay').classList.add('open');
+    document.body.style.overflow = 'hidden';
+
+    const [post, comments, ratingData] = await Promise.all([
+      getPost(postId),
+      getComments(postId),
+      getRating(postId),
+    ]);
+
+    document.getElementById('modal-img').src      = post.blob_url;
+    document.getElementById('modal-img').alt      = post.title;
+    document.getElementById('modal-title').textContent   = post.title;
+    document.getElementById('modal-caption').textContent = post.caption || '';
+    document.getElementById('modal-creator').textContent = post.creator_name;
+    document.getElementById('modal-location').textContent = post.location || '';
+    document.getElementById('modal-date').textContent = fmtDate(post.created_at);
+    document.getElementById('modal-tags').innerHTML =
+      (post.auto_tags || []).map(t => `<span class="tag">${escHtml(t)}</span>`).join('');
+    document.getElementById('avg-rating').textContent =
+      ratingData.rating_count
+        ? `Average: ${ratingData.avg_rating.toFixed(1)} ★ (${ratingData.rating_count} ratings)`
+        : 'No ratings yet';
+
+    renderComments(comments);
+
+    // Show comment form only when logged in
+    const loggedIn = !!currentUser;
+    document.getElementById('comment-form').style.display  = loggedIn ? 'flex'  : 'none';
+    document.getElementById('comment-login-hint').style.display = loggedIn ? 'none' : 'block';
+  }
+
+  window.closeModal = function() {
+    document.getElementById('modal-overlay').classList.remove('open');
+    document.body.style.overflow = '';
+    activePostId = null;
+  };
+
+  document.getElementById('modal-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-overlay')) closeModal();
+  });
+
+  function renderComments(comments) {
+    const list = document.getElementById('comments-list');
+    if (!comments.length) {
+      list.innerHTML = '<p style="font-size:.8rem;opacity:.5;text-align:center;padding:.75rem">No comments yet. Be first!</p>';
+      return;
+    }
+    list.innerHTML = comments.map(c => `
+      <div class="comment-item">
+        <div class="c-header">
+          <span class="c-name">${escHtml(c.user_name)}</span>
+          <span class="sentiment ${c.sentiment}">${c.sentiment}</span>
+        </div>
+        <div class="c-text">${escHtml(c.text)}</div>
+      </div>`).join('');
+  }
+
+  window.submitComment = async function() {
+    const input = document.getElementById('comment-input');
+    const text = input.value.trim();
+    if (!text || !activePostId) return;
+    try {
+      await addComment(activePostId, text);
+      input.value = '';
+      const comments = await getComments(activePostId);
+      renderComments(comments);
+    } catch (err) {
+      alert(err.detail || 'Failed to post comment');
+    }
+  };
+
+  // ── Star rating ────────────────────────────────────────────────────────────
+  document.getElementById('star-rating').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-score]');
+    if (!btn || !activePostId || !currentUser) return;
+    const score = parseInt(btn.dataset.score);
+    try {
+      await ratePost(activePostId, score);
+      // Highlight stars up to selected
+      document.querySelectorAll('#star-rating button').forEach(b => {
+        b.classList.toggle('lit', parseInt(b.dataset.score) <= score);
+      });
+      const r = await getRating(activePostId);
+      document.getElementById('avg-rating').textContent =
+        `Average: ${r.avg_rating.toFixed(1)} ★ (${r.rating_count} ratings)`;
+    } catch (err) {
+      alert(err.detail || 'Failed to rate post');
+    }
+  });
+
+  // ── Search ─────────────────────────────────────────────────────────────────
+  window.doSearch = () => loadGrid(1);
+  document.getElementById('search-q').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadGrid(1);
+  });
+
+  // ── Nav buttons ────────────────────────────────────────────────────────────
+  document.getElementById('btn-login').addEventListener('click', login);
+  document.getElementById('btn-logout').addEventListener('click', logout);
+
+  // ── Utils ──────────────────────────────────────────────────────────────────
+  function escHtml(str = '') {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+  }
+  function starsStr(avg) {
+    const full = Math.round(avg || 0);
+    return '★'.repeat(full) + '☆'.repeat(5 - full);
+  }
+
+  bootstrap();
+</script>
+</body>
+</html>
